@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, BarChart3, CheckCircle2, AlertCircle, Plus, FileText, User, Calendar, Activity, Home, Zap, RotateCcw } from 'lucide-react';
+import { ClipboardList, BarChart3, CheckCircle2, AlertCircle, Plus, FileText, User, Calendar, Activity, Home, Zap, RotateCcw, Trash2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const initialData = [
@@ -105,6 +105,11 @@ export default function EndoscopyAuditApp() {
     setTimeout(() => {
       setShowSuccess(false);
     }, 3000);
+  };
+
+  const handleDelete = (id) => {
+    // Filter out the entry that matches the ID we want to delete
+    setEntries(prev => prev.filter(entry => entry.id !== id));
   };
 
   const renderDashboard = () => {
@@ -264,6 +269,7 @@ export default function EndoscopyAuditApp() {
                   <th className="px-6 py-3 font-medium">Social Factors</th>
                   <th className="px-6 py-3 font-medium">Prep Quality</th>
                   <th className="px-6 py-3 font-medium">Consequence</th>
+                  <th className="px-6 py-3 font-medium text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="text-sm text-slate-700">
@@ -292,6 +298,15 @@ export default function EndoscopyAuditApp() {
                       </span>
                     </td>
                     <td className="px-6 py-4">{entry.consequence}</td>
+                    <td className="px-6 py-4 text-right">
+                      <button 
+                        onClick={() => handleDelete(entry.id)}
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete Entry"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
