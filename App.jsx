@@ -2,6 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { ClipboardList, BarChart3, CheckCircle2, AlertCircle, Plus, FileText, User, Calendar, Activity, Home, Zap, RotateCcw, Trash2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
+// --- FIREBASE IMPORTS ---
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, query } from 'firebase/firestore';
+
+// --- FIREBASE CONFIGURATION ---
+// We will put your live keys in these empty quotes in the next step!
+const vercelFirebaseConfig = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : vercelFirebaseConfig;
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'endo-audit-app';
+
 const initialData = [];
 
 const initialFormState = {
@@ -20,9 +42,48 @@ const initialFormState = {
 
 export default function EndoscopyAuditApp() {
   const [activeTab, setActiveTab] = useState('form');
-  const [entries, setEntries] = useState(initialData);
+  
+  const [entries, setEntries] = useState([]);
+  const [user, setUser] = useState(null);
+
   const [formData, setFormData] = useState(initialFormState);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // --- FIREBASE AUTHENTICATION ---
+  useEffect(() => {
+    const initAuth = async () => {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
+
+  // --- FIREBASE REAL-TIME SYNC ---
+  useEffect(() => {
+    if (!user) return;
+    
+    const auditsRef = collection(db, 'artifacts', appId, 'public', 'data', 'audits');
+    const q = query(auditsRef);
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedEntries = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Sort newest entries to the top
+      fetchedEntries.sort((a, b) => b.timestamp - a.timestamp);
+      setEntries(fetchedEntries);
+    }, (error) => {
+      console.error("Firestore Error:", error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   // Handle generic input changes (radio, text, date)
   const handleInputChange = (e) => {
@@ -62,25 +123,38 @@ export default function EndoscopyAuditApp() {
     setFormData(initialFormState);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!user) return;
+
     const newEntry = {
       ...formData,
-      id: Date.now(),
+      timestamp: Date.now(),
     };
-    setEntries([newEntry, ...entries]);
-    setShowSuccess(true);
-    setFormData(initialFormState);
-    
-    // Hide success message after 3 seconds
-    setTimeout(() => {
-      setShowSuccess(false);
-    }, 3000);
+
+    try {
+      const auditsRef = collection(db, 'artifacts', appId, 'public', 'data', 'audits');
+      await addDoc(auditsRef, newEntry);
+      
+      setShowSuccess(true);
+      setFormData(initialFormState);
+      
+      setTimeout(() => {
+        setShowSuccess(false);
+      }, 3000);
+    } catch (error) {
+      console.error("Error adding document: ", error);
+    }
   };
 
-  const handleDelete = (id) => {
-    // Filter out the entry that matches the ID we want to delete
-    setEntries(prev => prev.filter(entry => entry.id !== id));
+  const handleDelete = async (id) => {
+    if (!user) return;
+    try {
+      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'audits', id);
+      await deleteDoc(docRef);
+    } catch (error) {
+      console.error("Error deleting document: ", error);
+    }
   };
 
   const renderDashboard = () => {
