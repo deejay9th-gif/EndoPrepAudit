@@ -8,14 +8,14 @@ import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged }
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, query } from 'firebase/firestore';
 
 // --- FIREBASE CONFIGURATION ---
-// We will put your live keys in these empty quotes in the next step!
 const vercelFirebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyCbkaBasPTxly0y_hcZlvAEIYe7GTK9vzk",
+  authDomain: "endo-audit.firebaseapp.com",
+  projectId: "endo-audit",
+  storageBucket: "endo-audit.firebasestorage.app",
+  messagingSenderId: "181251272284",
+  appId: "1:181251272284:web:f49749e7d111f8c3788099",
+  measurementId: "G-QDHW3WFGBC"
 };
 
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : vercelFirebaseConfig;
