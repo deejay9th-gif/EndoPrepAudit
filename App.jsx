@@ -2,36 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ClipboardList, BarChart3, CheckCircle2, AlertCircle, Plus, FileText, User, Calendar, Activity, Home, Zap, RotateCcw, Trash2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-const initialData = [
-  {
-    id: 1,
-    date: '2026-05-18',
-    staffInitials: 'JD',
-    procedureType: 'Colonoscopy',
-    bookingNotice: 'Short Notice (< 3 days)',
-    language: 'Language Barrier (No interpreter)',
-    preAssessment: 'No pre-assessment done',
-    instructions: ['None / Unknown'],
-    livingSituation: 'Lives alone',
-    mobility: 'Mild mobility issues (uses stick/walker)',
-    prepQuality: 'Inadequate (Unsafe to proceed)',
-    consequence: 'Cancelled due to poor prep'
-  },
-  {
-    id: 2,
-    date: '2026-05-19',
-    staffInitials: 'SW',
-    procedureType: 'Colonoscopy',
-    bookingNotice: 'Standard Notice (> 7 days)',
-    language: 'Native/Fluent Speaker',
-    preAssessment: 'Yes, fully completed',
-    instructions: ['Printed Leaflet (Mailed)', 'Email / Digital Link'],
-    livingSituation: 'Lives with family/partner/carer',
-    mobility: 'Fully mobile',
-    prepQuality: 'Excellent',
-    consequence: 'Completed successfully'
-  }
-];
+const initialData = [];
 
 const initialFormState = {
   date: new Date().toISOString().split('T')[0],
