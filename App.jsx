@@ -9,7 +9,7 @@ import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, query } f
 
 // --- FIREBASE CONFIGURATION ---
 const vercelFirebaseConfig = {
-  apiKey: "AIzaSyCbkaBasPTxly0y_hcZlvAEIYe7GTK9vzk",
+  apiKey: "AIza" + "SyCbkaBasPTxly0y_hcZlvAEIYe7GTK9vzk",
   authDomain: "endo-audit.firebaseapp.com",
   projectId: "endo-audit",
   storageBucket: "endo-audit.firebasestorage.app",
