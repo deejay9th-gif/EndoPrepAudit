@@ -30,6 +30,7 @@ const initialFormState = {
   date: new Date().toISOString().split('T')[0],
   staffInitials: '',
   procedureType: '',
+  bowelPrep: '',
   bookingNotice: '',
   language: '',
   preAssessment: '',
@@ -45,6 +46,7 @@ export default function EndoscopyAuditApp() {
   
   const [entries, setEntries] = useState([]);
   const [user, setUser] = useState(null);
+  const [dbError, setDbError] = useState(null);
 
   const [formData, setFormData] = useState(initialFormState);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -52,10 +54,14 @@ export default function EndoscopyAuditApp() {
   // --- FIREBASE AUTHENTICATION ---
   useEffect(() => {
     const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        setDbError("Authentication paused: " + err.message);
       }
     };
     initAuth();
@@ -78,14 +84,15 @@ export default function EndoscopyAuditApp() {
       // Sort newest entries to the top
       fetchedEntries.sort((a, b) => b.timestamp - a.timestamp);
       setEntries(fetchedEntries);
+      setDbError(null);
     }, (error) => {
-      console.error("Firestore Error:", error);
+      setDbError("Live sync connection paused. " + error.message);
     });
 
     return () => unsubscribe();
   }, [user]);
 
-  // Handle generic input changes (radio, text, date)
+  // Handle generic input changes (radio, text, date, select)
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -108,6 +115,7 @@ export default function EndoscopyAuditApp() {
     setFormData(prev => ({
       ...prev,
       procedureType: 'Colonoscopy',
+      bowelPrep: 'Plenvu',
       bookingNotice: 'Standard Notice (> 7 days)',
       language: 'Native/Fluent Speaker',
       preAssessment: 'Yes, fully completed',
@@ -138,12 +146,13 @@ export default function EndoscopyAuditApp() {
       
       setShowSuccess(true);
       setFormData(initialFormState);
+      setDbError(null);
       
       setTimeout(() => {
         setShowSuccess(false);
       }, 3000);
     } catch (error) {
-      console.error("Error adding document: ", error);
+      setDbError("Failed to save entry. " + error.message);
     }
   };
 
@@ -152,14 +161,19 @@ export default function EndoscopyAuditApp() {
     try {
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'audits', id);
       await deleteDoc(docRef);
+      setDbError(null);
     } catch (error) {
-      console.error("Error deleting document: ", error);
+      setDbError("Failed to delete entry. " + error.message);
     }
   };
 
   const renderDashboard = () => {
-    const inadequateCount = entries.filter(e => e.prepQuality.includes('Inadequate') || e.prepQuality.includes('Poor')).length;
-    const cancelCount = entries.filter(e => e.consequence.includes('Cancelled')).length;
+    const inadequateCount = entries.filter(e => {
+      const pq = e.prepQuality || '';
+      return pq.includes('Inadequate') || pq.includes('Poor');
+    }).length;
+    
+    const cancelCount = entries.filter(e => (e.consequence || '').includes('Cancelled')).length;
 
     const noticeData = [
       { name: '< 3 days', Adequate: 0, Inadequate: 0 },
@@ -186,31 +200,53 @@ export default function EndoscopyAuditApp() {
       { name: 'Bedbound', Adequate: 0, Inadequate: 0 }
     ];
 
+    const prepData = [
+      { name: 'Plenvu', Adequate: 0, Inadequate: 0 },
+      { name: 'Senna/Citramag', Adequate: 0, Inadequate: 0 },
+      { name: 'Enema', Adequate: 0, Inadequate: 0 },
+      { name: 'Extended', Adequate: 0, Inadequate: 0 },
+      { name: 'Other/None', Adequate: 0, Inadequate: 0 }
+    ];
+
     entries.forEach(e => {
+      const pq = e.prepQuality || '';
+      const bn = e.bookingNotice || '';
+      const lang = e.language || '';
+      const ls = e.livingSituation || '';
+      const mob = e.mobility || '';
+
       // Determine if prep was adequate or inadequate
-      const isAdequate = !e.prepQuality.includes('Inadequate') && !e.prepQuality.includes('Poor');
+      const isAdequate = !pq.includes('Inadequate') && !pq.includes('Poor');
       const type = isAdequate ? 'Adequate' : 'Inadequate';
       
       // Map to Notice Chart
-      if (e.bookingNotice.includes('< 3 days')) noticeData[0][type]++;
-      else if (e.bookingNotice.includes('3 to 7 days')) noticeData[1][type]++;
+      if (bn.includes('< 3 days')) noticeData[0][type]++;
+      else if (bn.includes('3 to 7 days')) noticeData[1][type]++;
       else noticeData[2][type]++;
 
       // Map to Language Chart
-      if (e.language.includes('Native')) languageData[0][type]++;
-      else if (e.language.includes('present')) languageData[1][type]++;
+      if (lang.includes('Native')) languageData[0][type]++;
+      else if (lang.includes('present')) languageData[1][type]++;
       else languageData[2][type]++;
 
       // Map to Living Chart
-      if (e.livingSituation.includes('family')) livingData[0][type]++;
-      else if (e.livingSituation.includes('alone')) livingData[1][type]++;
+      if (ls.includes('family')) livingData[0][type]++;
+      else if (ls.includes('alone')) livingData[1][type]++;
       else livingData[2][type]++;
 
       // Map to Mobility Chart
-      if (e.mobility.includes('Fully')) mobilityData[0][type]++;
-      else if (e.mobility.includes('Mild')) mobilityData[1][type]++;
-      else if (e.mobility.includes('Severe')) mobilityData[2][type]++;
+      if (mob.includes('Fully')) mobilityData[0][type]++;
+      else if (mob.includes('Mild')) mobilityData[1][type]++;
+      else if (mob.includes('Severe')) mobilityData[2][type]++;
       else mobilityData[3][type]++;
+
+      // Map to Prep Chart
+      const prep = e.bowelPrep || '';
+      if (prep.includes('Plenvu')) prepData[0][type]++;
+      else if (prep.includes('Senna')) prepData[1][type]++;
+      else if (prep.includes('Phosphate')) prepData[2][type]++;
+      else if (prep.includes('Extended')) prepData[3][type]++;
+      else prepData[4][type]++;
     });
 
     return (
@@ -240,7 +276,6 @@ export default function EndoscopyAuditApp() {
           </div>
         </div>
 
-        { }
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Chart 1: Prep by Notice */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
@@ -295,6 +330,24 @@ export default function EndoscopyAuditApp() {
               </ResponsiveContainer>
             </div>
           </div>
+
+          {/* Chart 5: Prep Quality by Bowel Prep Type */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <h3 className="font-semibold text-slate-800 mb-6">Prep Quality by Bowel Prep</h3>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={prepData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 11}} interval={0} angle={-15} textAnchor="end" />
+                  <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} allowDecimals={false} />
+                  <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                  <Legend iconType="circle" wrapperStyle={{paddingTop: '20px', fontSize: '14px'}} />
+                  <Bar dataKey="Adequate" stackId="a" fill="#10b981" radius={[0, 0, 4, 4]} maxBarSize={50} />
+                  <Bar dataKey="Inadequate" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={50} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
 
         {/* Data Table */}
@@ -309,6 +362,7 @@ export default function EndoscopyAuditApp() {
                   <th className="px-6 py-3 font-medium">Date</th>
                   <th className="px-6 py-3 font-medium">Staff</th>
                   <th className="px-6 py-3 font-medium">Procedure</th>
+                  <th className="px-6 py-3 font-medium">Prep Type</th>
                   <th className="px-6 py-3 font-medium">Notice</th>
                   <th className="px-6 py-3 font-medium">Language</th>
                   <th className="px-6 py-3 font-medium">Social Factors</th>
@@ -323,6 +377,7 @@ export default function EndoscopyAuditApp() {
                     <td className="px-6 py-4 whitespace-nowrap">{entry.date}</td>
                     <td className="px-6 py-4 font-medium text-slate-600">{entry.staffInitials}</td>
                     <td className="px-6 py-4">{entry.procedureType}</td>
+                    <td className="px-6 py-4 font-medium text-blue-600">{entry.bowelPrep || '-'}</td>
                     <td className="px-6 py-4">{entry.bookingNotice}</td>
                     <td className="px-6 py-4">{entry.language}</td>
                     <td className="px-6 py-4">
@@ -333,13 +388,13 @@ export default function EndoscopyAuditApp() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        entry.prepQuality.includes('Inadequate') || entry.prepQuality.includes('Poor')
+                        (entry.prepQuality || '').includes('Inadequate') || (entry.prepQuality || '').includes('Poor')
                           ? 'bg-red-100 text-red-700'
-                          : entry.prepQuality.includes('Fair') 
+                          : (entry.prepQuality || '').includes('Fair') 
                           ? 'bg-amber-100 text-amber-700'
                           : 'bg-green-100 text-green-700'
                       }`}>
-                        {entry.prepQuality.split(' ')[0]}
+                        {(entry.prepQuality || 'Unknown').split(' ')[0]}
                       </span>
                     </td>
                     <td className="px-6 py-4">{entry.consequence}</td>
@@ -376,7 +431,6 @@ export default function EndoscopyAuditApp() {
         </div>
       )}
 
-      {}
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-blue-50 p-5 rounded-xl border border-blue-100 shadow-sm gap-4">
         <div>
           <h3 className="font-semibold text-blue-900 flex items-center text-lg">
@@ -402,7 +456,7 @@ export default function EndoscopyAuditApp() {
             <h2 className="text-xl font-semibold text-slate-800">1. Procedure Basics</h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">Staff Initials</label>
               <input 
@@ -439,8 +493,24 @@ export default function EndoscopyAuditApp() {
                 <option value="">Select procedure...</option>
                 <option value="Colonoscopy">Colonoscopy</option>
                 <option value="Flexible Sigmoidoscopy">Flexible Sigmoidoscopy</option>
-                <option value="Gastroscopy">Gastroscopy</option>
                 <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Bowel Prep Type</label>
+              <select 
+                name="bowelPrep"
+                required
+                value={formData.bowelPrep}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              >
+                <option value="">Select prep given...</option>
+                <option value="Plenvu">Plenvu</option>
+                <option value="Senna and Citramag">Senna and Citramag</option>
+                <option value="Phosphate enema">Phosphate enema</option>
+                <option value="Extended prep">Extended prep</option>
+                <option value="Other">Other (Specify in notes)</option>
               </select>
             </div>
           </div>
@@ -648,6 +718,12 @@ export default function EndoscopyAuditApp() {
 
       {/* Main Content Area */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {dbError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-center shadow-sm">
+            <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+            <p className="text-sm font-medium">{dbError}</p>
+          </div>
+        )}
         {activeTab === 'form' ? renderForm() : renderDashboard()}
       </main>
     </div>
